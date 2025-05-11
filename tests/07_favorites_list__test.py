@@ -4,6 +4,13 @@ from api.exceptions.notfound import NotFoundException
 from api.neo4j import get_driver
 from api.dao.favorites import FavoriteDAO
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 toy_story = '862'
 goodfellas = '769'
 user_id = '9f965bf6-7e32-4afb-893f-756f502b2c2a'
@@ -14,7 +21,7 @@ def before_all(app):
     with app.app_context():
         driver = get_driver()
 
-        with driver.session() as session:
+        with driver.session(database=db_name) as session:
             session.execute_write(lambda tx: tx.run("""
                 MERGE (u:User {userId: $userId})
                 SET u.email = $email

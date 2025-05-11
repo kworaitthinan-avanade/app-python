@@ -1,8 +1,18 @@
+import os
+from dotenv import load_dotenv
 from flask import Flask, current_app
 
 # tag::import[]
 from neo4j import GraphDatabase
 # end::import[]
+
+# Load environment variables from .env
+load_dotenv(override=True)
+
+# Access them using os.getenv or os.environ
+uri = os.getenv("NEO4J_URI")
+username = os.getenv("NEO4J_USERNAME")
+password = os.getenv("NEO4J_PASSWORD")
 
 """
 Initiate the Neo4j Driver
@@ -10,9 +20,13 @@ Initiate the Neo4j Driver
 # tag::initDriver[]
 def init_driver(uri, username, password):
     # TODO: Create an instance of the driver here
-    current_app.driver = None
+    # Create an instance of the driver
+    current_app.driver = GraphDatabase.driver(uri, auth=(username, password))
 
-    return None
+    # Verify Connectivity
+    current_app.driver.verify_connectivity()
+
+    return current_app.driver
 # end::initDriver[]
 
 

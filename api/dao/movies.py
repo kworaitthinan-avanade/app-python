@@ -1,7 +1,12 @@
+import os
+from dotenv import load_dotenv
 from api.data import popular, goodfellas
-
 from api.exceptions.notfound import NotFoundException
 from api.data import popular
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
 
 class MovieDAO:
     """
@@ -21,8 +26,42 @@ class MovieDAO:
     """
     # tag::all[]
     def all(self, sort, order, limit=6, skip=0, user_id=None):
-        # TODO: Get list from movies from Neo4j
-        return popular
+        # tag::get_movies[]
+        # Define the Unit of Work
+        def get_movies(tx, sort, order, limit, skip, user_id):
+        # end::get_movies[]
+            # tag::allcypher[]
+            # Get User favorites
+            favorites = self.get_user_favorites(tx, user_id)
+
+            # Define the cypher statement
+            cypher = """
+                MATCH (m:Movie)
+                WHERE m.`{0}` IS NOT NULL
+                RETURN m {{
+                    .*,
+                    favorite: m.tmdbId IN $favorites
+                }} AS movie
+                ORDER BY m.`{0}` {1}
+                SKIP $skip
+                LIMIT $limit
+            """.format(sort, order)
+
+            # Run the statement within the transaction passed as the first argument
+            result = tx.run(cypher, limit=limit, skip=skip, user_id=user_id, favorites=favorites)
+            # end::allcypher[]
+
+            # tag::allmovies[]
+            # Extract a list of Movies from the Result
+            return [row.value("movie") for row in result]
+            # end::allmovies[]
+
+        # tag::return[]
+        # tag::session[]
+        with self.driver.session(database=db_name) as session:
+        # end::session[]
+            return session.execute_read(get_movies, sort, order, limit, skip, user_id)
+            # end::return[]
     # end::all[]
 
     """
@@ -132,5 +171,13 @@ class MovieDAO:
     """
     # tag::getUserFavorites[]
     def get_user_favorites(self, tx, user_id):
-        return []
+        if user_id == None:
+            return []
+
+        result = tx.run("""
+            MATCH (u:User {userId: $userId})-[:HAS_FAVORITE]->(m)
+            RETURN m.tmdbId AS id
+        """, userId=user_id)
+
+        return [ record.get("id") for record in result ]
     # end::getUserFavorites[]

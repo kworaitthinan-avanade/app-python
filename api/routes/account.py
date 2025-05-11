@@ -4,6 +4,13 @@ from flask_jwt_extended import current_user, jwt_required
 from api.dao.favorites import FavoriteDAO
 from api.dao.ratings import RatingDAO
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 account_routes = Blueprint("account", __name__, url_prefix="/api/account")
 
 @account_routes.route('/', methods=['GET'])

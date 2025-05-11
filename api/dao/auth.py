@@ -9,6 +9,13 @@ from api.exceptions.validation import ValidationException
 
 from neo4j.exceptions import ConstraintError
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 class AuthDAO:
     """
     The constructor expects an instance of the Neo4j Driver, which will be
@@ -67,21 +74,44 @@ class AuthDAO:
     """
     # tag::authenticate[]
     def authenticate(self, email, plain_password):
-        # TODO: Implement Login functionality
-        if email == "graphacademy@neo4j.com" and plain_password == "letmein":
-            # Build a set of claims
+        def get_user(tx, email):
+            # Get the result
+            result = tx.run("MATCH (u:User {email: $email}) RETURN u",
+                email=email)
+
+            # Expect a single row
+            first = result.single()
+
+            # No records? Return None
+            if first is None:
+                return None
+
+            # Get the `u` value returned by the Cypher query
+            user = first.get("u")
+
+            return user
+
+        with self.driver.session(database=db_name) as session:
+            user = session.execute_read(get_user, email=email)
+
+            # User not found, return False
+            if user is None:
+                return False
+
+            # Passwords do not match, return false
+            if bcrypt.checkpw(plain_password.encode('utf-8'), user["password"].encode('utf-8')) is False:
+                return False
+
+            # Generate JWT Token
             payload = {
-                "userId": "00000000-0000-0000-0000-000000000000",
-                "email": email,
-                "name": "GraphAcademy User",
+                "userId": user["userId"],
+                "email":  user["email"],
+                "name":  user["name"],
             }
 
-            # Generate Token
             payload["token"] = self._generate_token(payload)
 
             return payload
-        else:
-            return False
     # end::authenticate[]
 
     """
@@ -117,3 +147,47 @@ class AuthDAO:
         except jwt.InvalidTokenError:
             return None
     # end::decode[]
+
+    def register(self, email, plain_password, name):
+        encrypted = bcrypt.hashpw(plain_password.encode("utf8"), bcrypt.gensalt()).decode('utf8')
+
+        # tag::create[]
+        def create_user(tx, email, encrypted, name):
+            return tx.run(""" // <1>
+                CREATE (u:User {
+                    userId: randomUuid(),
+                    email: $email,
+                    password: $encrypted,
+                    name: $name
+                })
+                RETURN u
+            """,
+            email=email, encrypted=encrypted, name=name # <2>
+            ).single() # <3>
+        # end::create[]
+
+        # tag::catch[]
+        try:
+            # tag::call_create[]
+            with self.driver.session(database=db_name) as session:
+                result = session.execute_write(create_user, email, encrypted, name)
+                # end::call_create[]
+
+                # tag::extract[]
+                user = result['u']
+
+                payload = {
+                    "userId": user["userId"],
+                    "email":  user["email"],
+                    "name":  user["name"],
+                }
+
+                payload["token"] = self._generate_token(payload)
+
+                return payload
+                # end::extract[]
+        except ConstraintError as err:
+            # Pass error details through to a ValidationException
+            raise ValidationException(err.message, {
+                "email": err.message
+            })

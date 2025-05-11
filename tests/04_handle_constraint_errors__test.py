@@ -6,6 +6,13 @@ from api.exceptions.validation import ValidationException
 
 from api.neo4j import get_driver
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 email = str(random.randint(1, 10000)) + "@neo4j.com"
 password = "letmein"
 name = "Random User"
@@ -18,7 +25,7 @@ def before_all(app):
         def delete_user(tx):
             return tx.run("MATCH (u:User {email: $email}) DETACH DELETE u", email=email).consume()
 
-        with driver.session() as session:
+        with driver.session(database=db_name) as session:
             session.execute_write(delete_user)
             session.close()
 
@@ -38,7 +45,7 @@ def test_unique_constraint(app):
         """).single()
 
     with app.app_context():
-        with get_driver().session() as session:
+        with get_driver().session(database=db_name) as session:
             res = session.execute_read(get_constraints)
 
             assert res is not None

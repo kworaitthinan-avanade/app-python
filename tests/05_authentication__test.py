@@ -3,6 +3,13 @@ import pytest
 from api.dao.auth import AuthDAO
 from api.neo4j import get_driver
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 email = 'authenticated@neo4j.com'
 password = 'AuthenticateM3!'
 name = 'Authenticated User'
@@ -30,7 +37,7 @@ def test_authenticate_user(app):
         def delete_user(tx):
             return tx.run("MATCH (u:User {email: $email}) DETACH DELETE u", email=email).consume()
 
-        with driver.session() as session:
+        with driver.session(database=db_name) as session:
             session.execute_write(delete_user)
             session.close()
 
@@ -76,5 +83,5 @@ def test_set_GA_timestamp_to_verify_test(app):
     with app.app_context():
         driver = get_driver()
 
-        with driver.session() as session:
+        with driver.session(database=db_name) as session:
             session.execute_write(update_user)

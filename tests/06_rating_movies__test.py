@@ -3,6 +3,13 @@ import pytest
 from api.neo4j import get_driver
 from api.dao.ratings import RatingDAO
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 movie = '769'
 user = '1185150b-9e81-46a2-a1d3-eb649544b9c4'
 email = 'graphacademy.reviewer@neo4j.com'
@@ -20,7 +27,7 @@ def before_all(app):
             MERGE (m:Movie {tmdbId: $movie})
             """, user=user, movie=movie, email=email).consume()
 
-        with driver.session() as session:
+        with driver.session(database=db_name) as session:
             session.execute_write(merge_data)
             session.close()
 
