@@ -4,6 +4,13 @@ from flask_jwt_extended import current_user, jwt_required
 from api.dao.genres import GenreDAO
 from api.dao.movies import MovieDAO
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv(override=True)
+db_name = os.getenv("NEO4J_DATABASE", "neo4j")
+
 genre_routes = Blueprint("genre", __name__, url_prefix="/api/genres")
 
 @genre_routes.get('/')
